@@ -1,0 +1,10 @@
+requests
+bs4
+torch
+pandas
+numpy
+scikit-learn
+seaborn
+matplotlib
+arabic_reshaper
+python-bidi
