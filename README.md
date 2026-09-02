@@ -18,7 +18,7 @@ Instead of processing every token through identical weights, this project adopts
 
 ## 2. Dataset & Preprocessing Pipeline
 
-The empirical foundation of this project is a dataset containing **70,000 Persian text reviews** collected from SnappFood.
+The empirical foundation of this project is a dataset containing **50,000 Persian text reviews** collected from SnappFood.
 
 ### 2.1 Data Collection
 
