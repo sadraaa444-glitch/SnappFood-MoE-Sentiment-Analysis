@@ -8,3 +8,5 @@ seaborn
 matplotlib
 arabic_reshaper
 python-bidi
+fastapi
+uvicorn

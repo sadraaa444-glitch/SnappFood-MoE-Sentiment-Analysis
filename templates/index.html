@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoE Architecture Visualization</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0d0d12;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            overflow-x: hidden;
+        }
+        
+        #network-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 0;
+            opacity: 0.3;
+        }
+
+        .main-wrapper {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+        }
+
+        .input-section {
+            width: 100%;
+            max-width: 650px;
+            background: rgba(26, 26, 36, 0.85);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid #2a2a35;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+
+        h2 {
+            margin-top: 0;
+            font-size: 24px;
+            letter-spacing: 1px;
+        }
+
+        .subtitle {
+            color: #aaa;
+            font-size: 14px;
+            margin-bottom: 25px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 90px;
+            background: #15151e;
+            border: 1px solid #3a3a4a;
+            color: #fff;
+            border-radius: 6px;
+            padding: 15px;
+            font-size: 16px;
+            resize: none;
+            box-sizing: border-box;
+            outline: none;
+            direction: rtl;
+            text-align: right;
+            font-family: Tahoma, sans-serif;
+        }
+
+        textarea:focus { border-color: #00d2ff; }
+
+        button {
+            margin-top: 20px;
+            padding: 12px 40px;
+            background: linear-gradient(90deg, #00d2ff, #3a7bd5);
+            border: none;
+            border-radius: 6px;
+            color: white;
+            font-size: 15px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 210, 255, 0.4);
+        }
+
+        .stars-container {
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 5px;
+            min-height: 35px;
+        }
+
+        .star-icon {
+            width: 28px;
+            height: 28px;
+            fill: #2a2a35;
+            transition: all 0.4s ease;
+        }
+
+        .star-icon.active {
+            fill: #00d2ff;
+            filter: drop-shadow(0 0 8px rgba(0, 210, 255, 0.6));
+        }
+
+        .architecture-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            height: 350px;
+            margin-top: 50px;
+        }
+
+        .svg-connectors {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        line {
+            stroke: #2a2a35;
+            stroke-width: 3;
+            transition: all 0.4s ease-out;
+            stroke-dasharray: 4;
+        }
+
+        .node {
+            position: absolute;
+            z-index: 2;
+            background: #111118;
+            border: 2px solid #2a2a35;
+            color: #ddd;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            border-radius: 8px;
+            transition: all 0.4s ease-out;
+            white-space: nowrap;
+        }
+
+        .router-node {
+            width: auto;
+            min-width: 120px;
+            padding: 0 20px;
+            height: 40px;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            border-radius: 20px;
+        }
+
+        .experts-row {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            z-index: 2;
+        }
+
+        .expert-node {
+            position: relative;
+            width: 85px;
+            height: 50px;
+        }
+
+        .expert-label {
+            position: absolute;
+            bottom: -25px;
+            width: 100%;
+            text-align: center;
+            font-size: 13px;
+            color: #666;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+    </style>
+</head>
+<body>
+
+    <canvas id="network-canvas"></canvas>
+
+    <div class="main-wrapper">
+        <div class="input-section">
+            <h2>AI Sentiment Analysis (MoE)</h2>
+            <p class="subtitle">Enter your text to let the specialized neural networks analyze it.</p>
+            
+            <textarea id="textInput" placeholder="Write your review here..."></textarea>
+            <br>
+            <button onclick="runInference()">Analyze</button>
+            <div class="stars-container" id="predOutput"></div>
+        </div>
+
+        <div class="architecture-container" id="archContainer">
+            <svg class="svg-connectors" id="svgLines">
+                <line id="path-0" x1="0" y1="0" x2="0" y2="0" />
+                <line id="path-1" x1="0" y1="0" x2="0" y2="0" />
+                <line id="path-2" x1="0" y1="0" x2="0" y2="0" />
+                <line id="path-3" x1="0" y1="0" x2="0" y2="0" />
+            </svg>
+
+            <div class="node router-node" id="router">Gating / Router</div>
+            
+            <div class="experts-row">
+                <div class="node expert-node" id="exp-0">Expert 1<div class="expert-label" id="lbl-0">W: 0.00</div></div>
+                <div class="node expert-node" id="exp-1">Expert 2<div class="expert-label" id="lbl-1">W: 0.00</div></div>
+                <div class="node expert-node" id="exp-2">Expert 3<div class="expert-label" id="lbl-2">W: 0.00</div></div>
+                <div class="node expert-node" id="exp-3">Expert 4<div class="expert-label" id="lbl-3">W: 0.00</div></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('network-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * canvas.height;
+                this.vx = (Math.random() - 0.5) * 0.5;
+                this.vy = (Math.random() - 0.5) * 0.5;
+                this.radius = Math.random() * 2 + 1;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.x < 0 || this.x > canvas.width) this.vx = -this.vx;
+                if (this.y < 0 || this.y > canvas.height) this.vy = -this.vy;
+            }
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(0, 210, 255, 0.3)';
+                ctx.fill();
+            }
+        }
+
+        for (let i = 0; i < 60; i++) particles.push(new Particle());
+
+        function animateParticles() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    if (dist < 100) {
+                        ctx.beginPath();
+                        ctx.strokeStyle = `rgba(0, 210, 255, ${0.15 - dist/600})`;
+                        ctx.lineWidth = 1;
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+            requestAnimationFrame(animateParticles);
+        }
+        animateParticles();
+
+        function updateLines() {
+            const svg = document.getElementById('svgLines');
+            const svgRect = svg.getBoundingClientRect();
+            const router = document.getElementById('router');
+            const routerRect = router.getBoundingClientRect();
+            
+            const rX = routerRect.left - svgRect.left + (routerRect.width / 2);
+            const rY = routerRect.top - svgRect.top + routerRect.height; 
+
+            for (let i = 0; i < 4; i++) {
+                const exp = document.getElementById(`exp-${i}`);
+                const expRect = exp.getBoundingClientRect();
+                
+                const eX = expRect.left - svgRect.left + (expRect.width / 2);
+                const eY = expRect.top - svgRect.top; 
+
+                const line = document.getElementById(`path-${i}`);
+                line.setAttribute('x1', rX);
+                line.setAttribute('y1', rY);
+                line.setAttribute('x2', eX);
+                line.setAttribute('y2', eY);
+            }
+        }
+
+        window.addEventListener('resize', updateLines);
+        window.addEventListener('load', () => { setTimeout(updateLines, 100); });
+
+        function renderStars(rating) {
+            let starsHtml = '';
+            const svgPath = "M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z";
+            
+            for(let i = 1; i <= 5; i++) {
+                const activeClass = i <= rating ? 'active' : '';
+                starsHtml += `
+                    <svg viewBox="0 0 24 24" class="star-icon ${activeClass}">
+                        <path d="${svgPath}" />
+                    </svg>
+                `;
+            }
+            return starsHtml;
+        }
+
+        async function runInference() {
+            const text = document.getElementById('textInput').value;
+            const output = document.getElementById('predOutput');
+            
+            if (!text.trim()) return;
+
+            output.innerHTML = "";
+            const router = document.getElementById('router');
+            router.style.borderColor = "#00d2ff";
+            router.style.color = "#00d2ff";
+            router.style.boxShadow = "0 0 15px rgba(0, 210, 255, 0.4)";
+
+            for(let i=0; i<4; i++) {
+                const exp = document.getElementById(`exp-${i}`);
+                const line = document.getElementById(`path-${i}`);
+                exp.style.boxShadow = "none";
+                exp.style.borderColor = "#2a2a35";
+                exp.style.color = "#ddd";
+                line.style.stroke = "#2a2a35";
+                line.style.strokeWidth = "3";
+                line.style.strokeDasharray = "4";
+                document.getElementById(`lbl-${i}`).innerText = "W: 0.00";
+            }
+
+            try {
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text: text })
+                });
+                const data = await response.json();
+                
+                if(data.status === "success") {
+                    const ratingValue = parseInt(data.prediction);
+                    output.innerHTML = renderStars(ratingValue);
+                    
+                    data.routing_weights.forEach((w, i) => {
+                        const exp = document.getElementById(`exp-${i}`);
+                        const line = document.getElementById(`path-${i}`);
+                        const lbl = document.getElementById(`lbl-${i}`);
+                        
+                        lbl.innerText = `W: ${w.toFixed(2)}`;
+                        
+                        const visualWeight = Math.pow(w, 3) * 100;
+                        
+                        if (w > 0.05) {
+                            const color = `rgba(0, 210, 255, ${w + 0.3})`;
+                            
+                            exp.style.borderColor = "#00d2ff";
+                            exp.style.color = "#00d2ff";
+                            exp.style.boxShadow = `0 0 ${visualWeight}px ${color}`;
+                            
+                            line.style.stroke = "#00d2ff";
+                            line.style.strokeWidth = 2 + (w * 8);
+                            line.style.strokeDasharray = "0"; 
+                        }
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+                output.innerHTML = `<span style="color: #ff4444; font-size: 16px;">Error</span>`;
+            } setTimeout(() => {
+                router.style.borderColor = "#2a2a35";
+                router.style.color = "#ddd";
+                router.style.boxShadow = "none";
+            }, 800);
+        }
+    </script>
+</body>
+</html>
