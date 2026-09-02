@@ -1,84 +1,172 @@
 # Custom Sparse Mixture-of-Experts (MoE) for Nuanced Sentiment Analysis on Persian Restaurant Reviews
 
 ## 📄 Abstract
-State-of-the-art Natural Language Processing (NLP) often demands massive computational resources. Mixture-of-Experts (MoE) architectures address this by activating specialized sub-networks conditionally per token, thereby keeping computational costs constant while scaling capacity. This repository presents a comprehensive, from-scratch implementation of a **Sparse MoE Network** in PyTorch for sentiment analysis. Utilizing a novel dataset of **70,000 Persian restaurant reviews** scraped from SnappFood via a custom-built data pipe (`DataCollector.py`), we explore the token routing dynamics, the implementation of a load-balancing auxiliary loss, and the explicit semantic specialization developed by individual experts. 
+
+State-of-the-art Natural Language Processing (NLP) often demands massive computational resources. Mixture-of-Experts (MoE) architectures address this by activating specialized sub-networks conditionally per token, thereby keeping computational costs constant while scaling capacity.
+
+This repository presents a comprehensive, from-scratch implementation of a **Sparse Mixture-of-Experts (MoE)** network in PyTorch for Persian sentiment analysis. The project is built on a dataset of **50,000 Persian restaurant reviews** collected from SnappFood using a custom data pipeline (`DataCollector.py`). In addition to the model implementation, the project now includes a **Flask-based local web interface** that allows users to interact with the trained model through a modern browser UI.
 
 ---
 
 ## 1. Introduction & Motivation
-Persian sentiment analysis, particularly in food-delivery contexts, poses severe linguistic challenges. Reviews contain heavily colloquial structures, overlapping sentiment targets, and high syntactic diversity. 
 
-Traditional dense architectures process all inputs through identical weights, leading to parameter interference when learning distinct concepts. This research utilizes a **Sparse MoE approach** where a gating network dynamically assigns tokens to a set of specialized Feed-Forward Neural Networks (Experts). This allows the network to partition the complex linguistic space of Persian slang and formal text efficiently without increasing the computational footprint per token.
+Persian sentiment analysis—particularly in food-delivery contexts—poses significant linguistic challenges. Reviews frequently contain colloquial expressions, mixed sentiment targets, informal spelling, and high syntactic diversity.
+
+Instead of processing every token through identical weights, this project adopts a **Sparse MoE architecture**, where a gating network dynamically routes each token to specialized Feed-Forward Neural Networks (Experts). This reduces parameter interference while enabling semantic specialization without increasing computation per token.
 
 ---
 
 ## 2. Dataset & Preprocessing Pipeline
-The empirical foundation of this project is a dataset comprising **70,000 text reviews** extracted from the SnappFood platform.
 
-### 2.1 Extraction
-Data collection was automated via `DataCollector.py`, implementing robust scraping loops, handling rate limits, and structuring the raw JSON responses into tabular data.
+The empirical foundation of this project is a dataset containing **70,000 Persian text reviews** collected from SnappFood.
 
-### 2.2 Text Normalization & Challenges
-Persian text requires meticulous preprocessing due to structural variations:
-- **Bi-directional Rendering:** Handled via `python-bidi` and `arabic_reshaper` to guarantee accurate RTL (Right-to-Left) processing and visual token integrity during logging.
-- **Tokenization & Cleaning:** Non-alphanumeric noise, URLs, and repetitive punctuation were filtered, leaving native Persian tokens while carefully preserving critical sentiment-bearing emojis.
+### 2.1 Data Collection
+
+`DataCollector.py` automates the collection process by handling repeated requests, rate limiting, and converting raw JSON responses into a structured dataset.
+
+### 2.2 Text Normalization
+
+Persian text requires careful preprocessing due to RTL formatting and orthographic variations.
+
+- **Right-to-Left Rendering:** `python-bidi` and `arabic_reshaper` ensure correct visual rendering during debugging and logging.
+- **Cleaning:** URLs, excessive punctuation, and non-essential noise are removed while preserving meaningful emojis and sentiment-bearing tokens.
+- **Token Preparation:** Text is normalized before entering the training pipeline.
 
 ---
 
 ## 3. Architecture & Methodology
-The implemented architecture consists of an Embedding layer, a custom Gating Network, a bank of Parallel Experts, and a Classification head.
+
+The implemented model consists of four primary components:
+
+- Embedding Layer
+- Custom Gating Network
+- Parallel Expert Networks
+- Classification Head
 
 ![MoE Architecture Design](Mixture of Experts.jpg)
 
-### 3.1 Sparse MoE Layer Mechanics
-Given an input vector $x$, the output of the MoE layer is governed by the following formulation:
+### 3.1 Sparse MoE Layer
 
-$$y = \sum_{i=1}^{N} G(x)_i E_i(x)$$
+For an input representation <math value="x"/>, the MoE output is:
 
-Where:
-- $N$ is the total number of experts.
-- $E_i(x)$ is the non-linear output of the $i$-th expert network.
-- $G(x)_i$ is the gating coefficient for the $i$-th expert, satisfying $\sum G(x)_i = 1$.
+<math block value="y=\\sum_{i=1}^{N}G(x)_iE_i(x)"/>
 
-To enforce sparsity (activating only the top $k$ experts), a Top-$k$ gating mechanism with trainable gating weights $W_g$ is used:
+where:
 
-$$G(x) = \text{Softmax}(\text{TopK}(W_g \cdot x, k))$$
+- <math value="N"/> is the number of experts.
+- <math value="E_i(x)"/> is the output of the i-th expert.
+- <math value="G(x)_i"/> is the routing weight assigned by the gating network.
 
-### 3.2 The Load-Balancing Auxiliary Loss
-A critical failure mode of MoE architectures is **router collapse**, where the gating network repeatedly selects a few dominant experts, leaving others un-trained and idle. To mitigate this, an **Auxiliary Loss ($L_{aux}$)** was integrated alongside the primary Cross-Entropy Loss:
+To enforce sparsity, only the **Top-k experts** are activated:
 
-$$L_{total} = L_{cross\_entropy} + \alpha \cdot L_{aux}$$
+<math block value="G(x)=\\text{Softmax}(\\text{TopK}(W_gx,k))"/>
 
-The auxiliary loss calculates the square of the coefficient of variation of the expert gating probabilities across the batch, heavily penalizing unequal distribution of workloads and forcing the router toward uniform expert utilization.
+---
+
+### 3.2 Load-Balancing Auxiliary Loss
+
+A common failure mode of MoE systems is **router collapse**, where only a few experts receive nearly all tokens.
+
+To prevent this, an auxiliary load-balancing loss is combined with the classification loss:
+
+<math block value="L_{total}=L_{CE}+\\alpha L_{aux}"/>
+
+The auxiliary objective encourages more uniform expert utilization across each batch, improving both training stability and expert specialization.
 
 ---
 
 ## 4. Interpretability & Expert Specialization
-A standalone feature of this implementation is the empirical tracking of token allocation using the `discover_expert_specialties` subroutine. By auditing the valid/test loops, we extract the top keywords routed to each expert.
+
+One distinguishing feature of this implementation is its ability to inspect **expert specialization**.
+
+During validation, the `discover_expert_specialties` routine records which tokens are routed to each expert, allowing qualitative analysis of the semantic roles learned by individual experts.
 
 ---
 
-## 5. Repository Structure
-- `DataCollector.py`: Custom scrapper and text compiler for SnappFood reviews.
-- `MainNotebook.ipynb`: End-to-end training pipeline, MoE layers, and visualizations.
-- `requirements.txt`: Pinned python dependencies for full reproducibility.
+## 5. Local Web Interface
+
+The project includes a **Flask-powered local web application** that provides an intuitive interface for testing the sentiment analysis model.
+
+### Features
+
+- Modern browser-based interface
+- Persian RTL support
+- Local inference without Streamlit
+- Simple deployment with a single command
+
+After launching the application, users can enter Persian restaurant reviews directly from the browser and receive sentiment predictions from the trained MoE model.
 
 ---
 
-## 6. Replication Manual
+## 6. Repository Structure
 
-### Installation
-Clone the repository and install the verified environment:
+```text
+SnappFood-MoE-Sentiment-Analysis/
+│
+├── app.py                  # Flask local web application
+├── DataCollector.py        # SnappFood data collection pipeline
+├── MainNotebook.ipynb      # Training and experimentation notebook
+├── requirements.txt
+├── templates/              # HTML templates for the Flask interface
+├── static/                 # CSS, JavaScript, and assets (if present)
+├── Mixture of Experts.jpg
+└── README.md
+```
+
+---
+
+## 7. Installation
+
+Clone the repository and install the required dependencies.
+
 ```bash
-git clone [https://github.com/sadraaa444-glitch/SnappFood-MoE-Sentiment-Analysis.git](https://github.com/sadraaa444-glitch/SnappFood-MoE-Sentiment-Analysis.git)
+git clone https://github.com/sadraaa444-glitch/SnappFood-MoE-Sentiment-Analysis.git
 cd SnappFood-MoE-Sentiment-Analysis
 pip install -r requirements.txt
 ```
 
-### Dataset and Execution
-1. Run `DataCollector.py` to compile the 70,000 reviews dataset.
-2. Fire up your Jupyter environment and open `MainNotebook.ipynb`.
-3. Execute all cells to witness the data preprocessing, model initialization, custom training loop dynamics, and routing analysis.
+---
+
+## 8. Running the Project
+
+### Step 1 — Prepare the Dataset (Optional)
+
+If the dataset has not already been created, run:
+
+```bash
+python DataCollector.py
+```
+
+### Step 2 — Launch the Local Web Application
+
+Start the Flask application with:
+
+```bash
+python app.py
+```
+
+Then open the displayed local address (typically `http://127.0.0.1:5000`) in your browser.
 
 ---
+
+## 9. Training
+
+The complete training pipeline—including preprocessing, model implementation, custom MoE layers, training loops, and routing analysis—is available in:
+
+`MainNotebook.ipynb`
+
+---
+
+## 10. Technologies Used
+
+- Python
+- PyTorch
+- Flask
+- HTML/CSS
+- python-bidi
+- arabic_reshaper
+- Jupyter Notebook
+
+---
+
 *Developed by Sadra Amiri*
